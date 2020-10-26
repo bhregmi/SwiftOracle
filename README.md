@@ -1,6 +1,9 @@
 # SwiftOracle
 OCILIB wrapper for Swift, linux compatible
 
+Added Date support;
+Added a dependency on C bridge to OCILIB (swift 5 compatible)
+
 
 This is beginning point for Oracle database adapter for Swift
 
