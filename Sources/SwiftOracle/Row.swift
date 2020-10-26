@@ -1,6 +1,6 @@
 
 import cocilib
-
+import Foundation
 
 public class Field {
     private let resultPointer: OpaquePointer
@@ -24,6 +24,30 @@ public class Field {
     public var double: Double {
         return OCI_GetDouble(resultPointer, index)
     }
+    
+    public var datetime: Date {
+        let ociDate = OCI_GetDate(resultPointer, index)!
+        var year: Int32 = 0, month: Int32 = 0, day: Int32 = 0, hour: Int32 = 0, min: Int32 = 0, sec: Int32 = 0
+        OCI_DateGetDateTime(ociDate, &year, &month, &day, &hour, &min, &sec)
+//        var ociDateStrPtr: UnsafeMutablePointer<otext>?
+//        OCI_DateToText(ociDate, "DD/MM/YYYY HH24:MI:SS", 260, ociDateStrPtr);
+//        let ociDateStr = String(validatingUTF8: ociDateStrPtr!)!
+//        let formatter = DateFormatter()
+//        formatter.dateFormat = "dd/MM/yyyy HH:mm:ss"
+//        let date: Date = formatter.date(from: ociDateStr)!
+        var dateComponents = DateComponents()
+        dateComponents.year = Int(year)
+        dateComponents.month = Int(month)
+        dateComponents.day = Int(day)
+        dateComponents.hour = Int(hour)
+        dateComponents.minute = Int(min)
+        dateComponents.second = Int(sec)
+        dateComponents.timeZone = TimeZone(secondsFromGMT: 0)
+        let userCalendar = Calendar.current
+        let date = userCalendar.date(from: dateComponents)!
+        return date
+    }
+    
     public var value: Any? {
         if self.isNull{
             return nil as Any?
@@ -38,6 +62,8 @@ public class Field {
             else{
                 return self.double
             }
+        case .datetime:
+            return self.datetime
         default:
             assert(0==1,"bad value \(type)")
             return "asd" as! AnyObject

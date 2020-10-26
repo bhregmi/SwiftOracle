@@ -77,7 +77,7 @@ public class Connection {
     
     public required init(service: OracleService, user:String, pwd: String) {
         conn_info = ConnectionInfo(service_name: service.string, user: user, pwd: pwd)
-        OCI_Initialize({error_callback($0)} as! POCI_ERROR, nil, UInt32(OCI_ENV_DEFAULT)); //should be once per app
+        OCI_Initialize({error_callback($0)} as? POCI_ERROR, nil, UInt32(OCI_ENV_DEFAULT)); //should be once per app
     }
     
     func close() {
