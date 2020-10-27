@@ -113,10 +113,14 @@ public class Cursor : Sequence, IteratorProtocol {
         }
     }
     
-    public func execute(_ statement: String, params: [String: BindVar]=[:], register: [String: DataTypes]=[:]) throws {
+    public func execute(_ statement: String, params: [String: BindVar]=[:], register: [String: DataTypes]=[:], prefetchSize: Int = 20) throws {
         reset()
         let prepared = OCI_Prepare(statementPointer, statement)
         assert(prepared == 1)
+        
+        let _ = OCI_SetPrefetchSize(statementPointer, UInt32(prefetchSize))
+        let _ = OCI_SetFetchSize(statementPointer, UInt32(prefetchSize))
+        
         for (name, bindVar) in params {
             bind(name, bindVar: bindVar)
         }
