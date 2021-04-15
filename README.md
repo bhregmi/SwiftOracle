@@ -33,9 +33,9 @@ Make sure there are no errors in either of these steps (warning are OK.)
 
 (5) If using Xcode, set the following project Build Settings:   
 
-Header Search Paths -> <path to instantclient>/sdk/include, /usr/local/include.  
-Library Search Paths -> <path to instantclient>, /usr/local/lib.  
-Runpath Search Paths -> <path to instantclient>.  
+Header Search Paths -> /Users/me/instantclient_19_8/sdk/include, /usr/local/include.  
+Library Search Paths -> /Users/me/instantclient_19_8, /usr/local/lib.  
+Runpath Search Paths -> /Users/me/instantclient_19_8.  
 
 
 
