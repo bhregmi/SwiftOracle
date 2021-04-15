@@ -10,9 +10,9 @@ Installation
 (1) Installing Oracle Instant Client  
 Download Basic package (zip) and SDK package (zip) for your platform from https://www.oracle.com/database/technologies/instant-client/downloads.html  
 
-Unzip both into one directory, ex. ~/instantclient_19_8. This will be your ORACLE_HOME.  
+Unzip both into one directory, ex. /Users/me/instantclient_19_8. This will be your ORACLE_HOME.  
 Set environment variables:  
-export ORACLE_HOME=~/instantclient_19_8  
+export ORACLE_HOME=/Users/me/instantclient_19_8  
 export TNS_ADMIN=$ORACLE_HOME/network/admin  
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ORACLE_HOME  
 export PATH=$PATH:$ORACLE_HOME  
@@ -30,14 +30,18 @@ sudo make install
 Make sure there are no errors in either of these steps (warning are OK.)  
 
 (4) If using SwiftOracle with SPM, make sure to set LD_LIBRARY_PATH as above and also include linker flags, ex., -Xlinker -L/usr/local/lib  
-(5) If using Xcode, 
+
+(5) If using Xcode, set the following project Build Settings:   
+
+Header Search Paths -> <path to instantclient>/sdk/include, /usr/local/include.  
+Library Search Paths -> <path to instantclient>, /usr/local/lib.  
+Runpath Search Paths -> <path to instantclient>.  
 
 
 
+PR are welcome.  
 
-PR are welcome.
-
-Here is what you can do:
+Here is what you can do:  
 
 ```swift
 let service = OracleService(host: "dv", port:"1521", service: "xe")
