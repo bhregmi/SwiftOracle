@@ -4,14 +4,44 @@ OCILIB wrapper for Swift, linux compatible
 Added Date support;
 Added a dependency on C bridge to OCILIB (swift 5 compatible)
 
-
-This is beginning point for Oracle database adapter for Swift
-
 This is wrapper for ocilib (https://github.com/vrogier/ocilib). 
 
-PR are welcome.
+Installation
+(1) Installing Oracle Instant Client  
+Download Basic package (zip) and SDK package (zip) for your platform from https://www.oracle.com/database/technologies/instant-client/downloads.html  
 
-Thats what you can do:
+Unzip both into one directory, ex. /Users/me/instantclient_19_8. This will be your ORACLE_HOME.  
+Set environment variables:  
+export ORACLE_HOME=/Users/me/instantclient_19_8  
+export TNS_ADMIN=$ORACLE_HOME/network/admin  
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ORACLE_HOME  
+export PATH=$PATH:$ORACLE_HOME  
+
+(2) Make sure you have C compiler installed
+
+(3) Installing OCILIB  
+git clone https://github.com/vrogier/ocilib.git  
+cd ocilib  
+./configure --with-oracle-home=$ORACLE_HOME --with-oracle-lib-path=$ORACLE_HOME --with-oracle-headers-path=$ORACLE_HOME/sdk/include --disable-dependency-tracking  
+make  
+chmod 755 config/install-sh  
+sudo make install  
+
+Make sure there are no errors in either of these steps (warning are OK.)  
+
+(4) If using SwiftOracle with SPM, make sure to set LD_LIBRARY_PATH as above and also include linker flags, ex., -Xlinker -L/usr/local/lib  
+
+(5) If using Xcode, set the following project Build Settings:   
+
+Header Search Paths -> /Users/me/instantclient_19_8/sdk/include, /usr/local/include.  
+Library Search Paths -> /Users/me/instantclient_19_8, /usr/local/lib.  
+Runpath Search Paths -> /Users/me/instantclient_19_8.  
+
+
+
+PR are welcome.  
+
+Here is what you can do:  
 
 ```swift
 let service = OracleService(host: "dv", port:"1521", service: "xe")
