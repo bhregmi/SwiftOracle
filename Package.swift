@@ -1,4 +1,4 @@
-// swift-tools-version:5.3
+// swift-tools-version:5.4
 
 import PackageDescription
 
@@ -7,10 +7,15 @@ let package = Package(
     products: [
             .library(
                 name: "SwiftOracle",
-                targets: ["SwiftOracle"]),
+                targets: ["SwiftOracle"]
+            ),
     ],
     dependencies: [
-        .package(url: "https://github.com/iliasaz/cocilib", from: "1.0.0"),
+        .package(url: "https://github.com/iliasaz/cocilib", from: "1.1.0"),
     ],
-    targets: [.target(name: "SwiftOracle", dependencies: ["cocilib"])]
+    targets: [
+        .target(name: "SwiftOracle",
+                dependencies: ["cocilib"]
+        )
+    ]
 )
