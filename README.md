@@ -1,8 +1,15 @@
 # SwiftOracle
 OCILIB wrapper for Swift, linux compatible
 
-Added Date support;
-Added a dependency on C bridge to OCILIB (swift 5 compatible)
+## New in this release
+
+- Added connection and sesssion pooling
+- Added Bindvar stringValue representation
+- Added Date support;
+- Added prefetchSize in cursor.execute to support efficient data transfers
+- Added a dependency on C bridge to OCILIB (swift 5 compatible)
+
+
 
 This is wrapper for ocilib (https://github.com/vrogier/ocilib). 
 

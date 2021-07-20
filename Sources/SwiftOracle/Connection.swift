@@ -129,4 +129,137 @@ public class Connection {
     
 }
 
+public struct PooledConnection {
+    private(set) var connection: OpaquePointer? = nil
+    
+    init(connHandle: OpaquePointer) {
+        connection = connHandle
+    }
+    
+    public func cursor() throws -> Cursor {
+        guard let connection = connection else {
+            throw DatabaseErrors.NotConnected
+        }
+        return Cursor(connection: connection)
+    }
+    
+    var autocommit: Bool {
+        set(newValue) {
+            OCI_SetAutoCommit(connection!, (newValue) ? 1 : 0)
+        }
+        get {
+            return OCI_GetAutoCommit(connection!) == 1
+        }
+    }
+    
+    public func commit() {
+        OCI_Commit(connection)
+    }
+    
+    public func rollback() {
+        OCI_Rollback(connection)
+    }
+}
 
+public enum PoolType {
+    case Connection, Session
+}
+
+///
+/// See OCILIB Pool implementation details here: http://vrogier.github.io/ocilib/doc/html/group___ocilib_c_api_pools.html
+///
+
+public class ConnectionPool {
+    private(set) var minConn: UInt32 = 1
+    private(set) var maxConn: UInt32
+    private(set) var incrConn: UInt32 = 1
+    private let conn_info: ConnectionInfo
+    private var pool: OpaquePointer? = nil
+    public var openConn: Int { Int(OCI_PoolGetOpenedCount(pool)) }
+    
+    public required init(service: OracleService, user:String, pwd: String, minConn: Int = 1, maxConn: Int, incrConn: Int = 1, poolType: PoolType = .Connection, isSysDBA: Bool = false) {
+        self.minConn = UInt32(minConn)
+        self.maxConn = UInt32(maxConn)
+        self.incrConn = UInt32(incrConn)
+        conn_info = ConnectionInfo(service_name: service.string, user: user, pwd: pwd)
+        OCI_Initialize({error_callback($0)} as? POCI_ERROR, nil, UInt32(OCI_ENV_DEFAULT)); //should be once per app
+        
+        pool = OCI_PoolCreate(conn_info.service_name, conn_info.user, conn_info.pwd,
+                              poolType == PoolType.Connection ? UInt32(OCI_POOL_CONNECTION) : UInt32(OCI_POOL_SESSION) ,
+                              // SYSDBA is only available for session pools
+                              (isSysDBA && poolType == PoolType.Session) ? UInt32(OCI_SESSION_SYSDBA) : UInt32(OCI_SESSION_DEFAULT),
+                              self.minConn, self.maxConn, self.incrConn)
+    }
+    
+    public func getConnection(tag: String?, autoCommit: Bool = false) -> PooledConnection {
+        var conn: PooledConnection = PooledConnection(connHandle: OCI_PoolGetConnection(pool, tag))
+        conn.autocommit = autoCommit
+        return conn
+    }
+    
+    public func returnConnection(conn: PooledConnection) {
+        OCI_ConnectionFree(conn.connection);
+    }
+    
+    public var statementCacheSize: Int {
+        get {
+            return Int(OCI_PoolGetStatementCacheSize(pool))
+        }
+        set {
+            OCI_PoolSetStatementCacheSize(pool, UInt32(newValue))
+        }
+    }
+    
+    public var timeout: Int {
+        get {
+            return Int(OCI_PoolGetTimeout(pool))
+        }
+        set {
+            OCI_PoolSetTimeout(pool, UInt32(newValue))
+        }
+    }
+    
+    public var noWait: Bool {
+        get {
+            return OCI_PoolGetNoWait(pool) == 1
+        }
+        set {
+            OCI_PoolSetNoWait(pool, newValue ? 1 : 0)
+        }
+    }
+    
+    public var busyCount: Int {
+        get {
+            Int(OCI_PoolGetBusyCount(pool))
+        }
+    }
+    
+    public var openedCount: Int {
+        get {
+            Int(OCI_PoolGetOpenedCount(pool))
+        }
+    }
+    
+    public var minCount: Int {
+        get {
+            Int(OCI_PoolGetMin(pool))
+        }
+    }
+    
+    public var maxCount: Int {
+        get {
+            Int(OCI_PoolGetMax(pool))
+        }
+    }
+    
+    public var incCount: Int {
+        get {
+            Int(OCI_PoolGetIncrement(pool))
+        }
+    }
+    
+    deinit {
+        OCI_PoolFree(pool)
+        OCI_Cleanup()  //should be once per app
+    }
+}
