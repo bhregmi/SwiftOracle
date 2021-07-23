@@ -3,6 +3,8 @@ OCILIB wrapper for Swift, linux compatible
 
 ## New in this release
 
+- Added array binding (BindVarArray)
+- Added executeBulkDML that uses arrays of bind variables in DMLs for greatly improved performance
 - Added connection and sesssion pooling
 - Added Bindvar stringValue representation
 - Added Date support;

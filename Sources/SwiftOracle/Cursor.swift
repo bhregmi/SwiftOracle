@@ -104,6 +104,11 @@ public class Cursor : Sequence, IteratorProtocol {
         binded_vars.append(bindVar)
     }
     
+    public func bind(_ name: String, bindVar: BindVarArray) {
+        bindVar.bind(statementPointer, name)
+//        binded_vars.append(bindVar)
+    }
+    
     public func register(_ name: String, type: DataTypes) {
         switch type {
         case .int:
@@ -133,6 +138,34 @@ public class Cursor : Sequence, IteratorProtocol {
         }
         resultPointer = OCI_GetResultset(statementPointer)
     }
+    
+    public func executeBulkDML(_ statement: String, params: [String: BindVarArray]=[:]) throws -> (Int, [String]) {
+        reset()
+        let prepared = OCI_Prepare(statementPointer, statement)
+        assert(prepared == 1)
+        
+        let arraySize = params.first?.value.count ?? 0
+//        print("arraySize: \(arraySize)")
+        
+        OCI_BindArraySetSize(statementPointer, UInt32(arraySize));
+        
+        for (name, bindVar) in params {
+            bind(name, bindVar: bindVar)
+        }
+
+        let executed = OCI_Execute(statementPointer);
+        var errors: [String] = []
+        
+        if executed != 1 {
+            var err = OCI_GetBatchError(statementPointer)
+            while (err != nil) {
+                errors.append("Error at row \(OCI_ErrorGetRow(err)) : \(OCI_ErrorGetString(err))")
+                err = OCI_GetBatchError(statementPointer)
+            }
+        }
+        return (affected, errors)
+    }
+    
     public func fetchone() -> Row? {
         guard let resultPointer=resultPointer else {
             return nil
