@@ -4,7 +4,7 @@ import cocilib
 
 
 //OCI_CDT_NUMERIC
-public enum DataTypes {
+public enum DataTypes: Equatable {
     case number(scale: Int), int, timestamp, bool, string, datetime, invalid
     init(col: OpaquePointer){
         let type = OCI_ColumnGetType(col)
@@ -179,6 +179,15 @@ public class Cursor : Sequence, IteratorProtocol {
     }
     public func next() -> Row? {
         return fetchone()
+    }
+    
+    public func fetchOneSwifty() -> SwiftyRow? {
+        guard let row = fetchone() else { return nil }
+        return SwiftyRow(withRow: row)
+    }
+    
+    public func nextSwifty() -> SwiftyRow? {
+        return fetchOneSwifty()
     }
     
     public var count: Int {
