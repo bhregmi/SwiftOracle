@@ -95,6 +95,7 @@ public class Field {
     }
     public var string: String {
         let s = OCI_GetString(resultPointer, index)!
+//        print("index: \(index), value: \(String(validatingUTF8: s))")
         return String(validatingUTF8: s)!
     }
     public var int: Int {

@@ -1,5 +1,9 @@
 import cocilib
 
+
+
+
+//OCI_CDT_NUMERIC
 public enum DataTypes: Equatable {
     case number(scale: Int), int, timestamp, bool, string, datetime, long, interval, raw, object, collection, ref, cursor, file, lob, invalid
     init(col: OpaquePointer){
