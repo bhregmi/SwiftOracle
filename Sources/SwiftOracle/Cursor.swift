@@ -1,17 +1,14 @@
 import cocilib
 
-
-
-
-//OCI_CDT_NUMERIC
-public enum DataTypes {
-    case number(scale: Int), int, timestamp, bool, string, datetime, invalid
+public enum DataTypes: Equatable {
+    case number(scale: Int), int, timestamp, bool, string, datetime, long, interval, raw, object, collection, ref, cursor, file, lob, invalid
     init(col: OpaquePointer){
         let type = OCI_ColumnGetType(col)
         switch Int32(type) {
         case OCI_CDT_NUMERIC:
             let scale = OCI_ColumnGetScale(col)
             self = .number(scale: Int(scale))
+            if scale == -127 { self = .int } else { self = .number(scale: Int(scale)) }
         case OCI_CDT_TEXT:
             self = .string
         case OCI_CDT_TIMESTAMP:
@@ -20,6 +17,24 @@ public enum DataTypes {
             self = .bool
         case OCI_CDT_DATETIME:
             self = .datetime
+        case OCI_CDT_LONG:
+            self = .long
+        case OCI_CDT_CURSOR:
+            self = .cursor
+        case OCI_CDT_LOB:
+            self = .lob
+        case OCI_CDT_FILE:
+            self = .file
+        case OCI_CDT_INTERVAL:
+            self = .interval
+        case OCI_CDT_RAW:
+            self = .raw
+        case OCI_CDT_OBJECT:
+            self = .object
+        case OCI_CDT_COLLECTION:
+            self = .collection
+        case OCI_CDT_REF:
+            self = .ref
         default:
             self = .invalid
             assert(1==0)
@@ -41,7 +56,7 @@ public enum DataTypes {
 //    collection = OCI_CDT_COLLECTION,
 //    ref = OCI_CDT_REF,
 //    bool = OCI_CDT_BOOLEAN
-//}
+//
 
 
 
@@ -75,7 +90,7 @@ public class Cursor : Sequence, IteratorProtocol {
         let colsCount = OCI_GetColumnCount(resultPointer)
         for i in 1...colsCount {
             let col = OCI_GetColumn(resultPointer, i)
-            let name_p =  OCI_ColumnGetName(col)
+            let name_p = OCI_ColumnGetName(col)
             let name =  String(validatingUTF8: name_p!)
             
             let type = DataTypes(col: col!)
@@ -106,7 +121,6 @@ public class Cursor : Sequence, IteratorProtocol {
     
     public func bind(_ name: String, bindVar: BindVarArray) {
         bindVar.bind(statementPointer, name)
-//        binded_vars.append(bindVar)
     }
     
     public func register(_ name: String, type: DataTypes) {
@@ -133,8 +147,9 @@ public class Cursor : Sequence, IteratorProtocol {
             self.register(name, type: type)
         }
         let executed = OCI_Execute(statementPointer);
-        if executed != 1{
-            throw DatabaseErrors.NotExecuted
+        if executed != 1 {
+            log.error("Error in \(#function)")
+            throw DatabaseErrors.SQLError(DatabaseError())
         }
         resultPointer = OCI_GetResultset(statementPointer)
     }
@@ -145,7 +160,6 @@ public class Cursor : Sequence, IteratorProtocol {
         assert(prepared == 1)
         
         let arraySize = params.first?.value.count ?? 0
-//        print("arraySize: \(arraySize)")
         
         OCI_BindArraySetSize(statementPointer, UInt32(arraySize));
         
@@ -181,6 +195,15 @@ public class Cursor : Sequence, IteratorProtocol {
         return fetchone()
     }
     
+    public func fetchOneSwifty(withStringRepresentation: Bool = false) -> SwiftyRow? {
+        guard let row = fetchone() else { return nil }
+        return SwiftyRow(withRow: row, withStringRepresentation: withStringRepresentation)
+    }
+    
+    public func nextSwifty(withStringRepresentation: Bool = false) -> SwiftyRow? {
+        return fetchOneSwifty(withStringRepresentation: withStringRepresentation)
+    }
+    
     public var count: Int {
         guard let resultPointer=self.resultPointer else {
             return 0
@@ -193,6 +216,10 @@ public class Cursor : Sequence, IteratorProtocol {
             _columns = get_columns()
         }
         return _columns!
+    }
+    
+    public func getColumnLabels() -> [String] {
+        columns.compactMap { $0.name }
     }
 }
 

@@ -12,10 +12,14 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/iliasaz/cocilib", from: "1.1.0"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
     ],
     targets: [
         .target(name: "SwiftOracle",
-                dependencies: ["cocilib"]
+                dependencies: [
+                    .product(name: "cocilib", package: "cocilib"),
+                    .product(name: "Logging", package: "swift-log")
+                ]
         )
     ]
 )

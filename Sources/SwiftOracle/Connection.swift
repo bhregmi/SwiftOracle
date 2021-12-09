@@ -1,36 +1,58 @@
-
+import Foundation
 import cocilib
+import Logging
 
 //@_exported import SQL
 
+let defaultLogger = Logger(label: "com.iliasazonov.swiftoracle")
+var log: Logger = defaultLogger
 
-struct DatabaseError: CustomStringConvertible {
+public func setLogger(logger: Logger) {
+    log = logger
+}
+
+public struct DatabaseError: CustomStringConvertible, Error {
     let error: OpaquePointer
-    var text: String {
-        return String(validatingUTF8: OCI_ErrorGetString(error))!
+    public let text: String
+    public let type: DatabaseErrorType
+    public let code: Int
+    public let statement: String
+    
+    init(_ errorPointer: OpaquePointer = OCI_GetLastError()) {
+        self.error = errorPointer
+        self.text = String(validatingUTF8: OCI_ErrorGetString(errorPointer))!
+        self.type = DatabaseError.getType(errorPointer)
+        self.code = Int(OCI_ErrorGetOCICode(errorPointer))
+        self.statement = DatabaseError.getStatement(errorPointer)
     }
-    var type: Int {
-        return Int(OCI_ErrorGetType(error))
+    
+    public var description: String {
+        "Error \(type)-\(code), \(text)\n in statement: \(statement)"
     }
-    var code: Int {
-        return Int(OCI_ErrorGetOCICode(error))
+        
+    static private func getType(_ errorPointer: OpaquePointer) -> DatabaseErrorType {
+        let typeNumber = Int32(OCI_ErrorGetType(errorPointer))
+        switch typeNumber {
+            case OCI_ERR_ORACLE: return .ORACLE
+            case OCI_ERR_OCILIB: return .OCILIB
+            default: return .UNKNOWN
+        }
     }
-    var statement: String {
-        let st = OCI_ErrorGetStatement(error)
-        let text = OCI_GetSql(st)!
-        return String(validatingUTF8: text)!
-    }
-    init(_ error: OpaquePointer) {
-        self.error = error
-    }
-    var description: String {
-        return "text: \(text)),\n\tstatement: \(statement)"
+    
+    static private func getStatement(_ errorPointer: OpaquePointer) -> String {
+        let st = OCI_ErrorGetStatement(errorPointer)
+        guard let text = OCI_GetSql(st) else { return "" }
+        return String(validatingUTF8: text) ?? "<not identified>"
     }
     
 }
 
-enum DatabaseErrors: Error {
-    case NotConnected, NotExecuted
+public enum DatabaseErrors: Error {
+    case NotConnected, NotExecuted, SQLError(_ error: DatabaseError)
+}
+
+public enum DatabaseErrorType {
+    case ORACLE, OCILIB, UNKNOWN
 }
 
 func error_callback(_ error: OpaquePointer) {
@@ -71,25 +93,31 @@ public class Connection {
     // associatedtype Error: ErrorType
     
     private var connection: OpaquePointer? = nil
-    
-    
     let conn_info: ConnectionInfo
     
     public required init(service: OracleService, user:String, pwd: String) {
         conn_info = ConnectionInfo(service_name: service.string, user: user, pwd: pwd)
-        OCI_Initialize({error_callback($0)} as? POCI_ERROR, nil, UInt32(OCI_ENV_DEFAULT)); //should be once per app
+        log.debug("Initializing OCILIB")
+        OCI_Initialize({error_callback($0)} as? POCI_ERROR, nil, UInt32(OCI_ENV_DEFAULT | OCI_ENV_CONTEXT)); //should be once per app
+        log.debug("OCILIB initialized")
     }
     
-    func close() {
+    public func close() {
         guard let connection = connection else {
             return
         }
+        log.debug("Releasing connection")
         OCI_ConnectionFree(connection)
         self.connection = nil
+        log.debug("Connection released")
     }
 	
     public func open() throws {
         connection = OCI_ConnectionCreate(conn_info.service_name, conn_info.user, conn_info.pwd, UInt32(OCI_SESSION_DEFAULT));
+        if connection == nil {
+            log.error("Connection failed")
+            throw DatabaseErrors.SQLError(DatabaseError())
+        }
     }
 	
     public func cursor() throws -> Cursor {
@@ -129,10 +157,16 @@ public class Connection {
     
 }
 
+public func throwFatalOCIError(_ message: String = "") -> Never {
+    guard let errPtr: OpaquePointer = OCI_GetLastError() else { fatalError("Could not retrieve OCI error. \(message)") }
+//        print(Thread.callStackSymbols)
+    fatalError(String(cString: OCI_ErrorGetString(errPtr)) + " \(message)")
+}
+
 public struct PooledConnection {
     private(set) var connection: OpaquePointer? = nil
     
-    init(connHandle: OpaquePointer) {
+    init(connHandle: OpaquePointer?) {
         connection = connHandle
     }
     
@@ -159,6 +193,74 @@ public struct PooledConnection {
     public func rollback() {
         OCI_Rollback(connection)
     }
+    
+    
+    
+    public func aqDequeue(queueName: String, payloadType: String) -> (String, String) {
+//        var typeInfo: OpaquePointer?
+//        var deq: OpaquePointer?
+//        var msg: OpaquePointer?
+        var msgId: String = ""
+        var corrId: String = ""
+        guard let typeInfo = OCI_TypeInfoGet(connection, payloadType.cString(using: .ascii), UInt32(OCI_TIF_TYPE)) else { throwFatalOCIError() }
+        guard let deq: OpaquePointer = OCI_DequeueCreate(typeInfo, queueName) else { throwFatalOCIError() }
+        guard let msg: OpaquePointer = OCI_DequeueGet(deq) else { throwFatalOCIError() }
+        let msgIdMaxLen: Int = 16
+        let lenPtr = UnsafeMutablePointer<UInt32>.allocate(capacity: 1)
+        lenPtr.initialize(to: UInt32(msgIdMaxLen))
+        let buf = UnsafeMutablePointer<UInt8>.allocate(capacity: msgIdMaxLen)
+        buf.assign(repeating: 0, count: msgIdMaxLen)
+        var data: Data
+        var hexes: [String]
+        let ret: Bool = (OCI_MsgGetID(msg, buf, lenPtr) != 0)
+        if ret {
+            data = Data(bytes: buf, count: msgIdMaxLen)
+            hexes = data.map { String(format: "%02X", $0) }
+            msgId = hexes.joined()
+            if let correlationPtr = OCI_MsgGetCorrelation(msg) {
+                corrId = String(validatingUTF8: correlationPtr) ?? ""
+            } else { corrId = "" }
+        }
+        commit()
+        OCI_DequeueFree(deq);
+        return (msgId, corrId)
+    }
+    
+    public func aqEnqueue(queueName: String, payloadType: String, correlationId: String?) -> String {
+        var msgId: String = ""
+        var corrId: String = ""
+        let msgIdMaxLen: Int = 16
+        let lenPtr = UnsafeMutablePointer<UInt32>.allocate(capacity: 1)
+        lenPtr.initialize(to: UInt32(msgIdMaxLen))
+        let buf = UnsafeMutablePointer<UInt8>.allocate(capacity: msgIdMaxLen)
+        buf.assign(repeating: 0, count: msgIdMaxLen)
+        var data: Data
+        var hexes: [String]
+        
+        guard let typeInfo = OCI_TypeInfoGet(connection, payloadType.cString(using: .ascii), UInt32(OCI_TIF_TYPE)) else { throwFatalOCIError() }
+        guard let enq: OpaquePointer = OCI_EnqueueCreate(typeInfo, queueName) else { throwFatalOCIError() }
+        guard let msg: OpaquePointer = OCI_MsgCreate(typeInfo) else { throwFatalOCIError() }
+        if let corrId = correlationId {
+            OCI_MsgSetCorrelation(msg, corrId)
+        }
+        let enqSuccess: Bool = (OCI_EnqueuePut(enq, msg) != 0)
+        if enqSuccess {
+            commit()
+            let ret: Bool = ( OCI_MsgGetID(msg, buf, lenPtr) != 0)
+            if ret {
+                data = Data(bytes: buf, count: msgIdMaxLen)
+                hexes = data.map { String(format: "%02X", $0) }
+                msgId = hexes.joined()
+            }
+        } else {
+            rollback()
+            print("Enqueue failed, corrId: \(correlationId)")
+            throwFatalOCIError()
+        }
+        OCI_MsgFree(msg);
+        OCI_EnqueueFree(enq);
+        return msgId
+    }
 }
 
 public enum PoolType {
@@ -174,25 +276,32 @@ public class ConnectionPool {
     private(set) var maxConn: UInt32
     private(set) var incrConn: UInt32 = 1
     private let conn_info: ConnectionInfo
-    private var pool: OpaquePointer? = nil
+    private var pool: OpaquePointer
     public var openConn: Int { Int(OCI_PoolGetOpenedCount(pool)) }
     
-    public required init(service: OracleService, user:String, pwd: String, minConn: Int = 1, maxConn: Int, incrConn: Int = 1, poolType: PoolType = .Connection, isSysDBA: Bool = false) {
+    public required init(service: OracleService, user:String, pwd: String, minConn: Int = 1, maxConn: Int, incrConn: Int = 1, poolType: PoolType = .Connection, isSysDBA: Bool = false) throws {
         self.minConn = UInt32(minConn)
         self.maxConn = UInt32(maxConn)
         self.incrConn = UInt32(incrConn)
         conn_info = ConnectionInfo(service_name: service.string, user: user, pwd: pwd)
-        OCI_Initialize({error_callback($0)} as? POCI_ERROR, nil, UInt32(OCI_ENV_DEFAULT)); //should be once per app
+        log.debug("Initializing OCILIB")
+        OCI_Initialize({error_callback($0)} as? POCI_ERROR, nil, UInt32(OCI_ENV_DEFAULT | OCI_ENV_CONTEXT | OCI_ENV_THREADED)); //should be once per app
         
-        pool = OCI_PoolCreate(conn_info.service_name, conn_info.user, conn_info.pwd,
+        log.debug("Creating connection pool")
+        guard let lpool = OCI_PoolCreate(conn_info.service_name, conn_info.user, conn_info.pwd,
                               poolType == PoolType.Connection ? UInt32(OCI_POOL_CONNECTION) : UInt32(OCI_POOL_SESSION) ,
                               // SYSDBA is only available for session pools
                               (isSysDBA && poolType == PoolType.Session) ? UInt32(OCI_SESSION_SYSDBA) : UInt32(OCI_SESSION_DEFAULT),
                               self.minConn, self.maxConn, self.incrConn)
+        
+        else { log.error("Error creating connection pool"); throw DatabaseErrors.NotConnected }
+        pool = lpool
+        log.debug("Connection pool created")
     }
     
-    public func getConnection(tag: String?, autoCommit: Bool = false) -> PooledConnection {
-        var conn: PooledConnection = PooledConnection(connHandle: OCI_PoolGetConnection(pool, tag))
+    public func getConnection(tag: String? = nil, autoCommit: Bool = false) -> PooledConnection {
+        guard let connPtr = OCI_PoolGetConnection(pool, tag) else { log.error("Error getting a connection from the pool"); throwFatalOCIError() }
+        var conn: PooledConnection = PooledConnection(connHandle: connPtr)
         conn.autocommit = autoCommit
         return conn
     }
@@ -256,6 +365,10 @@ public class ConnectionPool {
         get {
             Int(OCI_PoolGetIncrement(pool))
         }
+    }
+    
+    public func close() {
+        OCI_PoolFree(pool)
     }
     
     deinit {
