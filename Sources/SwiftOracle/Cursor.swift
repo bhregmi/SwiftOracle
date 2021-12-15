@@ -119,7 +119,7 @@ public class Cursor : Sequence, IteratorProtocol {
     }
     
     public func bind(_ name: String, bindVar: BindVar) {
-        bindVar.bind(statementPointer, name)
+        bindVar.bind(statementPointer, name, connection)
         binded_vars.append(bindVar)
     }
     

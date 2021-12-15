@@ -372,7 +372,6 @@ public class ConnectionPool {
     }
     
     deinit {
-        OCI_PoolFree(pool)
         OCI_Cleanup()  //should be once per app
     }
 }
