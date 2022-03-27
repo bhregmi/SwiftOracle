@@ -2,7 +2,10 @@
 OCILIB wrapper for Swift, linux compatible
 
 ## New in this release
+- Added support for REF Cursors. See an example below.
+- Added a layer of "swifty" objects - SwiftyField, SwiftyRow. This is still work in progress.
 
+## New in previous release
 - Added array binding (BindVarArray)
 - Added executeBulkDML that uses arrays of bind variables in DMLs for greatly improved performance
 - Added connection and sesssion pooling
@@ -91,3 +94,44 @@ for r in cursor {
 print(cursor.affected)
 
 ```
+
+REF Cursor example   
+
+```swift
+import Foundation
+import SwiftOracle
+
+// Create a DB stored function that returns a REF cursor
+/* 
+ create or replace function get_refcursor(i_type in varchar2, i_maxrows in number) return sys_refcursor as
+ cv sys_refcursor;
+ begin
+ open cv for select object_name, object_id from user_objects where object_type = i_type and rownum <= i_maxrows;
+ return cv;
+ end;
+ /
+*/
+ 
+let service = OracleService(from_string: "test_database")
+let conn = Connection(service: service, user: "user", pwd: "password")
+let sql = "select level as rnum, get_refcursor('PACKAGE', level) as cv from dual connect by level < 6"
+
+try conn.open()
+let mainCursor = try conn.cursor()
+try mainCursor.execute(sql)
+print("executed main cursor")
+
+for r in mainCursor {
+    print("main cursor row number: \(r["RNUM"]!.int)")
+    let cursorPtr = r["CV"]!.cursor
+    let cur = try conn.cursor(statementPtr: cursorPtr)
+    try cur.executePreparedStatement()
+    print("printing child cursor output")
+    for r1 in cur {
+        print("object_name: \(r1["OBJECT_NAME"]!.string), object_id: \(r1["OBJECT_ID"]!.int)")
+    }
+}
+
+
+```
+

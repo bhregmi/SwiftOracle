@@ -95,10 +95,10 @@ public class Connection {
     private var connection: OpaquePointer? = nil
     let conn_info: ConnectionInfo
     
-    public required init(service: OracleService, user:String, pwd: String) {
+    public required init(service: OracleService, user:String, pwd: String, threaded: Bool = false) {
         conn_info = ConnectionInfo(service_name: service.string, user: user, pwd: pwd)
         log.debug("Initializing OCILIB")
-        OCI_Initialize({error_callback($0)} as? POCI_ERROR, nil, UInt32(OCI_ENV_DEFAULT | OCI_ENV_CONTEXT)); //should be once per app
+        OCI_Initialize({error_callback($0)} as? POCI_ERROR, nil, UInt32(OCI_ENV_DEFAULT | OCI_ENV_CONTEXT | (threaded ? OCI_ENV_THREADED : 0) )); //should be once per app
         log.debug("OCILIB initialized")
     }
     
@@ -125,6 +125,13 @@ public class Connection {
             throw DatabaseErrors.NotConnected
         }
         return Cursor(connection: connection)
+    }
+    
+    public func cursor(statementPtr: OpaquePointer) throws -> Cursor {
+        guard let connection = connection else {
+            throw DatabaseErrors.NotConnected
+        }
+        return Cursor(connectionPtr: connection, statementPtr: statementPtr)
     }
 	
     public var connected: Bool {

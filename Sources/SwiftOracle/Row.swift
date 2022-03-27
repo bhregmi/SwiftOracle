@@ -2,7 +2,11 @@
 import cocilib
 import Foundation
 
-public struct SwiftyField: Identifiable, Equatable, Comparable {
+public struct SwiftyField: Identifiable, Equatable, Comparable, CustomStringConvertible {
+    public var description: String {
+        "name: \(name), type: \(type), value: \(string ?? "")"
+    }
+    
     public let name: String
     public let type: DataTypes
     public let index: Int
@@ -105,6 +109,10 @@ public class Field {
         return OCI_GetDouble(resultPointer, index)
     }
     
+    public var cursor: OpaquePointer {
+        return OCI_GetStatement(resultPointer, index)
+    }
+    
     public var datetime: Date {
         let ociDate = OCI_GetDate(resultPointer, index)!
         var year: Int32 = 0, month: Int32 = 0, day: Int32 = 0, hour: Int32 = 0, min: Int32 = 0, sec: Int32 = 0
@@ -155,6 +163,8 @@ public class Field {
             return self.int
         case .datetime:
             return self.datetime
+            case .cursor:
+                return self.cursor
         default:
 //            assert(0==1,"bad value \(type)")
             return "\(type) not supported"
@@ -162,7 +172,11 @@ public class Field {
     }
 }
 
-public struct SwiftyRow: Identifiable {
+public struct SwiftyRow: Identifiable, CustomStringConvertible {
+    public var description: String {
+        "\(dictString)"
+    }
+    
     public var id = UUID()
     public let fields: [SwiftyField]
     
@@ -196,6 +210,14 @@ public struct SwiftyRow: Identifiable {
         var result: [String : Any?]  = [:]
         for (index, column) in self.fields.enumerated() {
             result[column.name] = fields[index].value
+        }
+        return result
+    }
+    
+    public var dictString: [String : String?] {
+        var result: [String : String?]  = [:]
+        for (index, column) in self.fields.enumerated() {
+            result[column.name] = fields[index].string
         }
         return result
     }

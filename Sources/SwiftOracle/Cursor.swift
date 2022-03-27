@@ -12,7 +12,7 @@ public enum DataTypes: Equatable {
         case OCI_CDT_NUMERIC:
             let scale = OCI_ColumnGetScale(col)
             self = .number(scale: Int(scale))
-            if scale == -127 { self = .int } else { self = .number(scale: Int(scale)) }
+            if scale == -127 || scale == 0 { self = .int } else { self = .number(scale: Int(scale)) }
         case OCI_CDT_TEXT:
             self = .string
         case OCI_CDT_TIMESTAMP:
@@ -78,6 +78,11 @@ public class Cursor : Sequence, IteratorProtocol {
     public init(connection: OpaquePointer) {
         self.connection = connection
         statementPointer = OCI_StatementCreate(connection)
+    }
+    
+    public init(connectionPtr: OpaquePointer, statementPtr: OpaquePointer) {
+        self.connection = connectionPtr
+        self.statementPointer = statementPtr
     }
     
     deinit {
@@ -151,6 +156,41 @@ public class Cursor : Sequence, IteratorProtocol {
             self.register(name, type: type)
         }
         let executed = OCI_Execute(statementPointer);
+        if executed != 1 {
+            log.error("Error in \(#function)")
+            throw DatabaseErrors.SQLError(DatabaseError())
+        }
+        resultPointer = OCI_GetResultset(statementPointer)
+    }
+    
+    public func executePreparedStatement(prefetchSize: Int = 20) throws {
+        let _ = OCI_SetPrefetchSize(statementPointer, UInt32(prefetchSize))
+        let _ = OCI_SetFetchSize(statementPointer, UInt32(prefetchSize))
+        
+        resultPointer = OCI_GetResultset(statementPointer)
+    }
+    
+    public func executeArrayBinds(_ statement: String, withArrayBinds params: [String: BindVarArray]=[:], register: [String: DataTypes]=[:], prefetchSize: Int = 20) throws {
+        reset()
+        let prepared = OCI_Prepare(statementPointer, statement)
+        assert(prepared == 1)
+        
+        let _ = OCI_SetPrefetchSize(statementPointer, UInt32(prefetchSize))
+        let _ = OCI_SetFetchSize(statementPointer, UInt32(prefetchSize))
+        
+        let arraySize = params.first?.value.count ?? 0
+        OCI_BindArraySetSize(statementPointer, UInt32(arraySize));
+        
+        for (name, bindVar) in params {
+            bind(name, bindVar: bindVar)
+        }
+        
+        for (name, type) in register {
+            self.register(name, type: type)
+        }
+        
+        let executed = OCI_Execute(statementPointer);
+        
         if executed != 1 {
             log.error("Error in \(#function)")
             throw DatabaseErrors.SQLError(DatabaseError())
