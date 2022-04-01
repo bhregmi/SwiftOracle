@@ -67,9 +67,11 @@ public enum DataTypes: Equatable {
 
 public class Cursor : Sequence, IteratorProtocol {
     
-    public var resultPointer: OpaquePointer?
-    private var statementPointer: OpaquePointer
-    private let connection: OpaquePointer
+    public private(set) var resultPointer: OpaquePointer?
+    public private(set) var statementPointer: OpaquePointer
+    public let connection: OpaquePointer
+    public private(set) var sqlId: String = ""
+    public private(set) var dbmsOutputContent: String = ""
     
     private var _columns: [Column]?
     
@@ -114,13 +116,15 @@ public class Cursor : Sequence, IteratorProtocol {
         return Int(OCI_GetAffectedRows(statementPointer))
     }
     
-    func reset() {
+    public func reset() {
         _columns = nil
         binded_vars = []
         if resultPointer != nil{
             OCI_ReleaseResultsets(statementPointer)
         }
         resultPointer = nil
+        sqlId = ""
+        dbmsOutputContent = ""
     }
     
     public func bind(_ name: String, bindVar: BindVar) {
@@ -141,7 +145,7 @@ public class Cursor : Sequence, IteratorProtocol {
         }
     }
     
-    public func execute(_ statement: String, params: [String: BindVar]=[:], register: [String: DataTypes]=[:], prefetchSize: Int = 20) throws {
+    public func execute(_ statement: String, params: [String: BindVar]=[:], register: [String: DataTypes]=[:], prefetchSize: Int = 20, enableDbmsOutput: Bool = false) throws {
         reset()
         let prepared = OCI_Prepare(statementPointer, statement)
         assert(prepared == 1)
@@ -155,12 +159,28 @@ public class Cursor : Sequence, IteratorProtocol {
         for (name, type) in register {
             self.register(name, type: type)
         }
+        
+        if enableDbmsOutput {
+            OCI_ServerEnableOutput(connection, 1000000, 100, 32767)
+        }
+        
         let executed = OCI_Execute(statementPointer);
         if executed != 1 {
             log.error("Error in \(#function)")
             throw DatabaseErrors.SQLError(DatabaseError())
         }
+        
+        sqlId = String(validatingUTF8: OCI_GetSqlIdentifier(statementPointer)) ?? ""
         resultPointer = OCI_GetResultset(statementPointer)
+        
+        if enableDbmsOutput {
+            var outputPtr = OCI_ServerGetOutput(connection)
+            while outputPtr != nil {
+                self.dbmsOutputContent = self.dbmsOutputContent + (String(validatingUTF8: outputPtr!) ?? "") + "\n"
+                outputPtr = OCI_ServerGetOutput(connection)
+            }
+            OCI_ServerDisableOutput(connection)
+        }
     }
     
     public func executePreparedStatement(prefetchSize: Int = 20) throws {
@@ -195,6 +215,7 @@ public class Cursor : Sequence, IteratorProtocol {
             log.error("Error in \(#function)")
             throw DatabaseErrors.SQLError(DatabaseError())
         }
+        sqlId = String(validatingUTF8: OCI_GetSqlIdentifier(statementPointer)) ?? ""
         resultPointer = OCI_GetResultset(statementPointer)
     }
     
@@ -220,7 +241,10 @@ public class Cursor : Sequence, IteratorProtocol {
                 errors.append("Error at row \(OCI_ErrorGetRow(err)) : \(OCI_ErrorGetString(err))")
                 err = OCI_GetBatchError(statementPointer)
             }
+        } else {
+            sqlId = String(validatingUTF8: OCI_GetSqlIdentifier(statementPointer)) ?? ""
         }
+        
         return (affected, errors)
     }
     
@@ -265,6 +289,7 @@ public class Cursor : Sequence, IteratorProtocol {
     public func getColumnLabels() -> [String] {
         columns.compactMap { $0.name }
     }
+    
 }
 
 

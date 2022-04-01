@@ -89,6 +89,7 @@ public class Field {
     private let resultPointer: OpaquePointer
     private let index: UInt32
     let type: DataTypes
+    
     init(resultPointer: OpaquePointer, index: Int, type: DataTypes){
         self.resultPointer = resultPointer
         self.index = UInt32(index+1)

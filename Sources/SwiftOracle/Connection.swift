@@ -12,14 +12,14 @@ public func setLogger(logger: Logger) {
 }
 
 public struct DatabaseError: CustomStringConvertible, Error {
-    let error: OpaquePointer
+    let errorPtr: OpaquePointer
     public let text: String
     public let type: DatabaseErrorType
     public let code: Int
     public let statement: String
     
-    init(_ errorPointer: OpaquePointer = OCI_GetLastError()) {
-        self.error = errorPointer
+    public init(_ errorPointer: OpaquePointer = OCI_GetLastError()) {
+        self.errorPtr = errorPointer
         self.text = String(validatingUTF8: OCI_ErrorGetString(errorPointer))!
         self.type = DatabaseError.getType(errorPointer)
         self.code = Int(OCI_ErrorGetOCICode(errorPointer))
@@ -29,6 +29,8 @@ public struct DatabaseError: CustomStringConvertible, Error {
     public var description: String {
         "Error \(type)-\(code), \(text)\n in statement: \(statement)"
     }
+    
+    public var localizedDescription: String { description }
         
     static private func getType(_ errorPointer: OpaquePointer) -> DatabaseErrorType {
         let typeNumber = Int32(OCI_ErrorGetType(errorPointer))
@@ -92,13 +94,17 @@ public struct OracleService {
 public class Connection {
     // associatedtype Error: ErrorType
     
+    // environment singleton
+    private let env: OCILIBEnvironment
+    
     private var connection: OpaquePointer? = nil
     let conn_info: ConnectionInfo
     
     public required init(service: OracleService, user:String, pwd: String, threaded: Bool = false) {
         conn_info = ConnectionInfo(service_name: service.string, user: user, pwd: pwd)
         log.debug("Initializing OCILIB")
-        OCI_Initialize({error_callback($0)} as? POCI_ERROR, nil, UInt32(OCI_ENV_DEFAULT | OCI_ENV_CONTEXT | (threaded ? OCI_ENV_THREADED : 0) )); //should be once per app
+        self.env = OCILIBEnvironment.shared
+//        OCI_Initialize({error_callback($0)} as? POCI_ERROR, nil, UInt32(OCI_ENV_DEFAULT | OCI_ENV_CONTEXT | (threaded ? OCI_ENV_THREADED : 0) )); //should be once per app
         log.debug("OCILIB initialized")
     }
     
@@ -159,7 +165,8 @@ public class Connection {
 	
     deinit {
         close()
-        OCI_Cleanup()  //should be once per app
+        // cleanup is performed by the environment singleton
+//        OCI_Cleanup()  //should be once per app
     }
     
 }
@@ -279,6 +286,9 @@ public enum PoolType {
 ///
 
 public class ConnectionPool {
+    // environment singleton
+    private let env: OCILIBEnvironment
+    
     private(set) var minConn: UInt32 = 1
     private(set) var maxConn: UInt32
     private(set) var incrConn: UInt32 = 1
@@ -292,7 +302,8 @@ public class ConnectionPool {
         self.incrConn = UInt32(incrConn)
         conn_info = ConnectionInfo(service_name: service.string, user: user, pwd: pwd)
         log.debug("Initializing OCILIB")
-        OCI_Initialize({error_callback($0)} as? POCI_ERROR, nil, UInt32(OCI_ENV_DEFAULT | OCI_ENV_CONTEXT | OCI_ENV_THREADED)); //should be once per app
+        self.env = OCILIBEnvironment.shared
+//        OCI_Initialize({error_callback($0)} as? POCI_ERROR, nil, UInt32(OCI_ENV_DEFAULT | OCI_ENV_CONTEXT | OCI_ENV_THREADED)); //should be once per app
         
         log.debug("Creating connection pool")
         guard let lpool = OCI_PoolCreate(conn_info.service_name, conn_info.user, conn_info.pwd,
@@ -376,6 +387,17 @@ public class ConnectionPool {
     
     public func close() {
         OCI_PoolFree(pool)
+    }
+    
+}
+
+// this is to make sure we initialize and de-initialize the OCILIB environment once per application
+public class OCILIBEnvironment {
+    public static let shared = OCILIBEnvironment()
+    
+    init() {
+        // should be run once per app
+        OCI_Initialize({error_callback($0)} as? POCI_ERROR, nil, UInt32(OCI_ENV_DEFAULT | OCI_ENV_CONTEXT | OCI_ENV_THREADED));
     }
     
     deinit {

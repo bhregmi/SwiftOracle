@@ -12,6 +12,7 @@ public class BindVar: ExpressibleByStringLiteral, ExpressibleByIntegerLiteral, E
         self.value = v
         self.stringValue = String(value)
     }
+    
     public init (_ value: String) {
         var v = Array(value.utf8CString).map( {Int8(bitPattern: UInt8($0)) })
         bind = {st, name, _ in OCI_BindString(st, name, &v, 0)}
