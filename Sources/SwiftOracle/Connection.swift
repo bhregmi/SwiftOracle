@@ -191,6 +191,13 @@ public struct PooledConnection {
         return Cursor(connection: connection)
     }
     
+    public func cursor(statementPtr: OpaquePointer) throws -> Cursor {
+        guard let connection = connection else {
+            throw DatabaseErrors.NotConnected
+        }
+        return Cursor(connectionPtr: connection, statementPtr: statementPtr)
+    }
+    
     var autocommit: Bool {
         set(newValue) {
             OCI_SetAutoCommit(connection!, (newValue) ? 1 : 0)
