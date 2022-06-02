@@ -156,7 +156,7 @@ public class Field {
             return nil as Any?
         }
         switch type {
-        case .string, .timestamp:
+            case .string, .timestamp, .long, .collection, .lob, .object, .file, .raw :
             return self.string
         case let .number(scale):
             return self.double

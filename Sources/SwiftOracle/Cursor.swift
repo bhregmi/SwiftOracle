@@ -68,7 +68,7 @@ public enum DataTypes: Equatable {
 public class Cursor : Sequence, IteratorProtocol {
     
     public private(set) var resultPointer: OpaquePointer?
-    public private(set) var statementPointer: OpaquePointer
+    public var statementPointer: OpaquePointer
     public let connection: OpaquePointer
     public private(set) var sqlId: String = ""
     public private(set) var dbmsOutputContent: String = ""
