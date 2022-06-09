@@ -190,6 +190,7 @@ public class Cursor : Sequence, IteratorProtocol {
         resultPointer = OCI_GetResultset(statementPointer)
     }
     
+    /// This methond works only for DML statements. Oracle does not support array binding to a single variable in a WHERE clause of a regular SELECT statement. 
     public func executeArrayBinds(_ statement: String, withArrayBinds params: [String: BindVarArray]=[:], register: [String: DataTypes]=[:], prefetchSize: Int = 20) throws {
         reset()
         let prepared = OCI_Prepare(statementPointer, statement)

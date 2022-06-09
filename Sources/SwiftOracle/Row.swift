@@ -156,7 +156,7 @@ public class Field {
             return nil as Any?
         }
         switch type {
-            case .string, .timestamp, .long, .collection, .lob, .object, .file, .raw :
+            case .string, .timestamp, .long, .collection, .lob, .object, .file, .raw:
             return self.string
         case let .number(scale):
             return self.double
@@ -164,8 +164,8 @@ public class Field {
             return self.int
         case .datetime:
             return self.datetime
-            case .cursor:
-                return self.cursor
+        case .cursor:
+            return self.cursor
         default:
 //            assert(0==1,"bad value \(type)")
             return "\(type) not supported"

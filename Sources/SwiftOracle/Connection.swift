@@ -57,6 +57,15 @@ public enum DatabaseErrorType {
     case ORACLE, OCILIB, UNKNOWN
 }
 
+public enum FormatType: Int {
+    case date = 1
+    case timestamp = 2
+    case numeric = 3
+    case binaryDouble = 4
+    case binaryFloat = 5
+    case timestampTZ = 6
+}
+
 func error_callback(_ error: OpaquePointer) {
     print(DatabaseError(error))
 }
@@ -154,6 +163,26 @@ public class Connection {
         get {
             return OCI_GetAutoCommit(connection!) == 1
         }
+    }
+    
+    public func setFormat(fmtType: FormatType, fmtString: String, isGlobal: Bool = false) throws {
+        if isGlobal {
+            if (OCI_SetFormat(nil, UInt32(fmtType.rawValue), fmtString) == 0) {
+                throw DatabaseErrors.SQLError(DatabaseError())
+            }
+        } else {
+            if (OCI_SetFormat(connection, UInt32(fmtType.rawValue), fmtString) == 0) {
+                throw DatabaseErrors.SQLError(DatabaseError())
+            }
+        }
+    }
+    
+    public func ping() -> Bool {
+        return OCI_Ping(connection) == 1
+    }
+    
+    public func `break`() {
+        OCI_Break(connection)
     }
 	
     func transaction_create() throws {
@@ -322,6 +351,12 @@ public class ConnectionPool {
         else { log.error("Error creating connection pool"); throw DatabaseErrors.NotConnected }
         pool = lpool
         log.debug("Connection pool created")
+    }
+    
+    public func setFormat(fmtType: FormatType, fmtString: String) throws {
+        if (OCI_SetFormat(nil, UInt32(fmtType.rawValue), fmtString) == 0) {
+            throw DatabaseErrors.SQLError(DatabaseError())
+        }
     }
     
     public func getConnection(tag: String? = nil, autoCommit: Bool = false) -> PooledConnection {
