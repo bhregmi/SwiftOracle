@@ -71,7 +71,7 @@ func error_callback(_ error: OpaquePointer) {
 }
 
 public struct ConnectionInfo {
-    let service_name: String, user:String, pwd: String
+    let service_name: String, user:String, pwd: String, sysDBA: Bool
 }
 
 
@@ -109,8 +109,8 @@ public class Connection {
     private var connection: OpaquePointer? = nil
     let conn_info: ConnectionInfo
     
-    public required init(service: OracleService, user:String, pwd: String, threaded: Bool = false) {
-        conn_info = ConnectionInfo(service_name: service.string, user: user, pwd: pwd)
+    public required init(service: OracleService, user:String, pwd: String, sysDBA: Bool = false) {
+        conn_info = ConnectionInfo(service_name: service.string, user: user, pwd: pwd, sysDBA: sysDBA)
         log.debug("Initializing OCILIB")
         self.env = OCILIBEnvironment.shared
 //        OCI_Initialize({error_callback($0)} as? POCI_ERROR, nil, UInt32(OCI_ENV_DEFAULT | OCI_ENV_CONTEXT | (threaded ? OCI_ENV_THREADED : 0) )); //should be once per app
@@ -128,10 +128,12 @@ public class Connection {
     }
 	
     public func open() throws {
-        connection = OCI_ConnectionCreate(conn_info.service_name, conn_info.user, conn_info.pwd, UInt32(OCI_SESSION_DEFAULT));
+        log.debug("Attempting connection \(conn_info.user)@\(conn_info.service_name) \(conn_info.sysDBA ? "as SYSDBA" : "as regular user")")
+        connection = OCI_ConnectionCreate(conn_info.service_name, conn_info.user, conn_info.pwd, conn_info.sysDBA ? UInt32(OCI_SESSION_SYSDBA) : UInt32(OCI_SESSION_DEFAULT));
         if connection == nil {
-            log.error("Connection failed")
-            throw DatabaseErrors.SQLError(DatabaseError())
+            let err = DatabaseError()
+            log.error("Connection failed: \(err.description)")
+            throw DatabaseErrors.SQLError(err)
         }
     }
 	
@@ -336,7 +338,7 @@ public class ConnectionPool {
         self.minConn = UInt32(minConn)
         self.maxConn = UInt32(maxConn)
         self.incrConn = UInt32(incrConn)
-        conn_info = ConnectionInfo(service_name: service.string, user: user, pwd: pwd)
+        conn_info = ConnectionInfo(service_name: service.string, user: user, pwd: pwd, sysDBA: isSysDBA)
         log.debug("Initializing OCILIB")
         self.env = OCILIBEnvironment.shared
 //        OCI_Initialize({error_callback($0)} as? POCI_ERROR, nil, UInt32(OCI_ENV_DEFAULT | OCI_ENV_CONTEXT | OCI_ENV_THREADED)); //should be once per app
@@ -439,7 +441,9 @@ public class OCILIBEnvironment {
     
     init() {
         // should be run once per app
-        OCI_Initialize({error_callback($0)} as? POCI_ERROR, nil, UInt32(OCI_ENV_DEFAULT | OCI_ENV_CONTEXT | OCI_ENV_THREADED));
+//        OCI_Initialize({error_callback($0)} as? POCI_ERROR, nil, UInt32(OCI_ENV_DEFAULT | OCI_ENV_CONTEXT | OCI_ENV_THREADED));
+        // should not use a generic error pointer in a thread context
+        OCI_Initialize(nil, nil, UInt32(OCI_ENV_DEFAULT | OCI_ENV_CONTEXT | OCI_ENV_THREADED));
     }
     
     deinit {
