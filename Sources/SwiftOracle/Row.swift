@@ -99,7 +99,8 @@ public class Field {
         return OCI_IsNull(resultPointer, index) == 1
     }
     public var string: String {
-        let s = OCI_GetString(resultPointer, index)!
+        // https://github.com/vrogier/ocilib/issues/112
+        guard let s = OCI_GetString(resultPointer, index) else { return "" }
 //        print("index: \(index), value: \(String(validatingUTF8: s))")
         return String(validatingUTF8: s)!
     }
