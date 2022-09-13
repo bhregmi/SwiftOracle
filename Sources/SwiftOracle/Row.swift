@@ -96,7 +96,7 @@ public class Field {
         self.type = type
     }
     public var isNull: Bool {
-        print(OCI_IsNull(resultPointer, index) == 1 ? "\(index) is null" : "\(index) is not null")
+//        print(OCI_IsNull(resultPointer, index) == 1 ? "\(index) is null" : "\(index) is not null")
         return OCI_IsNull(resultPointer, index) == 1
     }
     public var string: String {
