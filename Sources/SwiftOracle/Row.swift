@@ -96,14 +96,12 @@ public class Field {
         self.type = type
     }
     public var isNull: Bool {
-//        print(OCI_IsNull(resultPointer, index) == 1 ? "\(index) is null" : "\(index) is not null")
         return OCI_IsNull(resultPointer, index) == 1
     }
     public var string: String {
         // https://github.com/vrogier/ocilib/issues/112
         // https://github.com/vrogier/ocilib/issues/313
         guard let s = OCI_GetString(resultPointer, index) else { return "" }
-//        print("index: \(index), value: \(String(validatingUTF8: s))")
         return String(validatingUTF8: s)!
     }
     public var int: Int {
@@ -159,7 +157,7 @@ public class Field {
             return nil as Any?
         }
         switch type {
-            case .string, .timestamp, .long, .collection, .lob, .object, .file, .raw:
+            case .string, .timestamp, .collection, .lob, .object, .file, .raw:
             return self.string
         case let .number(scale):
             return self.double
