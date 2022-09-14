@@ -101,6 +101,7 @@ public class Field {
     public var string: String {
         // https://github.com/vrogier/ocilib/issues/112
         // https://github.com/vrogier/ocilib/issues/313
+        guard type != .long else { return "\(type) type not yet supported" }
         guard let s = OCI_GetString(resultPointer, index) else { return "" }
         return String(validatingUTF8: s)!
     }
