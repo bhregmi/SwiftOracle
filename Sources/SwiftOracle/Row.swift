@@ -101,10 +101,20 @@ public class Field {
     public var string: String {
         // https://github.com/vrogier/ocilib/issues/112
         // https://github.com/vrogier/ocilib/issues/313
-        guard type != .long else { return "\(type) type not yet supported" }
-        guard let s = OCI_GetString(resultPointer, index) else { return "" }
-        return String(validatingUTF8: s)!
+        if type != .long {
+            guard let s = OCI_GetString(resultPointer, index) else { return "" }
+            return String(validatingUTF8: s)!
+        } else {
+            guard let lg = OCI_GetLong(resultPointer, index) else { return "" }
+            let longType = OCI_LongGetType(lg)
+            if longType == OCI_BLOB { return "LONG RAW not supported by SwiftOracle" }
+            else {
+                guard let s = OCI_GetString(resultPointer, index) else { return "" }
+                return String(validatingUTF8: s)!
+            }
+        }
     }
+    
     public var int: Int {
         return Int(OCI_GetInt(resultPointer, index))
     }
@@ -158,7 +168,7 @@ public class Field {
             return nil as Any?
         }
         switch type {
-            case .string, .timestamp, .collection, .lob, .object, .file, .raw:
+            case .string, .timestamp, .collection, .lob, .object, .file, .raw, .long:
             return self.string
         case let .number(scale):
             return self.double
