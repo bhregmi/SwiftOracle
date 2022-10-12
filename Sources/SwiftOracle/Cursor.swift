@@ -194,6 +194,17 @@ public class Cursor : Sequence, IteratorProtocol {
         resultPointer = OCI_GetResultset(statementPointer)
     }
     
+    public func refreshData(prefetchSize: Int = 20) throws {
+        let _ = OCI_SetPrefetchSize(statementPointer, UInt32(prefetchSize))
+        let _ = OCI_SetFetchSize(statementPointer, UInt32(prefetchSize))
+        
+        let executed = OCI_Execute(statementPointer);
+        if executed != 1 {
+            log.error("Error in \(#function)")
+            throw DatabaseErrors.SQLError(DatabaseError())
+        }
+    }
+    
     /// This methond works only for DML statements. Oracle does not support array binding to a single variable in a WHERE clause of a regular SELECT statement. 
     public func executeArrayBinds(_ statement: String, withArrayBinds params: [String: BindVarArray]=[:], register: [String: DataTypes]=[:], prefetchSize: Int = 20) throws {
         reset()

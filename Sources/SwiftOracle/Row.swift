@@ -230,7 +230,7 @@ public struct SwiftyRow: Identifiable, CustomStringConvertible {
     public var dictString: [String : String?] {
         var result: [String : String?]  = [:]
         for (index, column) in self.fields.enumerated() {
-            result[column.name] = fields[index].string
+            result[column.name] = fields[index].valueString
         }
         return result
     }
