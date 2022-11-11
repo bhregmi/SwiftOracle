@@ -67,7 +67,9 @@ public struct SwiftyField: Identifiable, Equatable, Comparable, CustomStringConv
     }
     
     public static func < (lhs: SwiftyField, rhs: SwiftyField) -> Bool {
-        guard !lhs.isNull && !rhs.isNull else { return false }
+        guard !(lhs.isNull && rhs.isNull) else { return false }
+        guard !lhs.isNull else { return true }
+        guard !rhs.isNull else { return false }
         guard lhs.type == rhs.type else {return false }
         switch lhs.type {
             case .int: return lhs.int! < rhs.int!
