@@ -106,7 +106,7 @@ public class Connection {
     // environment singleton
     private let env: OCILIBEnvironment
     
-    private var connection: OpaquePointer? = nil
+    private(set) var connection: OpaquePointer? = nil
     let conn_info: ConnectionInfo
     
     public required init(service: OracleService, user:String, pwd: String, sysDBA: Bool = false) {
@@ -443,7 +443,9 @@ public class OCILIBEnvironment {
         // should be run once per app
 //        OCI_Initialize({error_callback($0)} as? POCI_ERROR, nil, UInt32(OCI_ENV_DEFAULT | OCI_ENV_CONTEXT | OCI_ENV_THREADED));
         // should not use a generic error pointer in a thread context
-        OCI_Initialize(nil, nil, UInt32(OCI_ENV_DEFAULT | OCI_ENV_CONTEXT | OCI_ENV_THREADED));
+        OCI_Initialize(nil, nil, UInt32(OCI_ENV_DEFAULT | OCI_ENV_CONTEXT | OCI_ENV_THREADED))
+//        OCI_Initialize(nil, nil, UInt32(OCI_ENV_DEFAULT | OCI_ENV_CONTEXT )) // issue with ADT object in select list
+        //https://github.com/vrogier/ocilib/issues/320
     }
     
     deinit {

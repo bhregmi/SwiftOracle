@@ -39,6 +39,10 @@ public struct SwiftyField: Identifiable, Equatable, Comparable, CustomStringConv
         value as? Date
     }
     
+    public var timestamp: DateComponents? {
+        value as? DateComponents
+    }
+    
     public var toString: String {
         guard !self.isNull else { return "" }
         switch type {
@@ -46,7 +50,7 @@ public struct SwiftyField: Identifiable, Equatable, Comparable, CustomStringConv
             case .number(scale: -127): return "\(int!)"
             case .number(_): return "\(double!)"
             case .string: return string!
-            case .timestamp: return "\(date!)"
+            case .timestamp: return "\(timestamp!)"
             case .datetime: return "\(date!)"
             default: return "unsupported type \(type)"
         }
@@ -61,7 +65,7 @@ public struct SwiftyField: Identifiable, Equatable, Comparable, CustomStringConv
             case .number(_): return lhs.double == rhs.double
             case .string: return lhs.string == rhs.string
             case .datetime: return lhs.date == rhs.date
-            case .timestamp: return false
+            case .timestamp: return lhs.timestamp == rhs.timestamp
             default: return false
         }
     }
@@ -146,10 +150,11 @@ public class Field {
         return date
     }
     
-    public var timestamp: Date {
+    public var timestamp: DateComponents {
         let ociDate = OCI_GetTimestamp(resultPointer, index)!
-        var year: Int32 = 0, month: Int32 = 0, day: Int32 = 0, hour: Int32 = 0, min: Int32 = 0, sec: Int32 = 0, fsec: Int32 = 0
+        var year: Int32 = 0, month: Int32 = 0, day: Int32 = 0, hour: Int32 = 0, min: Int32 = 0, sec: Int32 = 0, fsec: Int32 = 0, tzOffsetHr: Int32 = 0, tzOffsetMin: Int32 = 0;
         OCI_TimestampGetDateTime(ociDate, &year, &month, &day, &hour, &min, &sec, &fsec)
+        OCI_TimestampGetTimeZoneOffset(ociDate, &tzOffsetHr, &tzOffsetMin)
 
         var dateComponents = DateComponents()
         dateComponents.year = Int(year)
@@ -158,11 +163,12 @@ public class Field {
         dateComponents.hour = Int(hour)
         dateComponents.minute = Int(min)
         dateComponents.second = Int(sec)
-        dateComponents.nanosecond = Int(fsec * 1000)
-        dateComponents.timeZone = TimeZone(secondsFromGMT: 0)
-        let userCalendar = Calendar.current
-        let date = userCalendar.date(from: dateComponents)!
-        return date
+        dateComponents.nanosecond = Int(fsec) * 1000
+        dateComponents.timeZone = TimeZone(secondsFromGMT: Int((tzOffsetHr*60 + tzOffsetMin) * 60))
+//        let userCalendar = Calendar.current
+//        let date = userCalendar.date(from: dateComponents)!
+//        print("timezone: \(dateComponents.timeZone), date: \(date)")
+        return dateComponents
     }
     
     public var value: Any? {
@@ -170,7 +176,7 @@ public class Field {
             return nil as Any?
         }
         switch type {
-            case .string, .timestamp, .collection, .lob, .object, .file, .raw, .long:
+            case .string, .collection, .lob, .object, .file, .raw, .long:
             return self.string
         case let .number(scale):
             return self.double
@@ -178,6 +184,8 @@ public class Field {
             return self.int
         case .datetime:
             return self.datetime
+        case .timestamp:
+            return self.timestamp
         case .cursor:
             return self.cursor
         default:

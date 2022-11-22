@@ -33,6 +33,12 @@ public class BindVar: ExpressibleByStringLiteral, ExpressibleByIntegerLiteral, E
         self.stringValue = String(value)
     }
     
+    public init(_ value: BindCollection) {
+        bind = { st, name, _ in OCI_BindColl(st, name, value.handle) }
+        self.value = value
+        self.stringValue = ""
+    }
+    
     public init (_ value: Date) {
         bind = { st, name, connPointer in
             let cal = Calendar(identifier: .gregorian)
@@ -82,3 +88,34 @@ public class BindVar: ExpressibleByStringLiteral, ExpressibleByIntegerLiteral, E
     
 }
 
+// This does not work in multithreaded environment
+// https://github.com/vrogier/ocilib/issues/320
+
+public class BindCollection {
+    private(set) var handle: OpaquePointer!
+    private(set) var typeHandle: OpaquePointer!
+    
+    public init(conn: Connection, typeName: String) {
+        typeHandle = OCI_TypeInfoGet(conn.connection, typeName, UInt32(OCI_TIF_TYPE))
+        handle = OCI_CollCreate(typeHandle)
+    }
+    
+    deinit {
+        OCI_CollFree(handle)
+        OCI_TypeInfoFree(typeHandle)
+    }
+    
+    public func append(_ value: Int) {
+        let elem: OpaquePointer = OCI_ElemCreate(typeHandle)
+        OCI_ElemSetBigInt(elem, Int64(value))
+        OCI_CollAppend(handle, elem)
+        OCI_ElemFree(elem)
+    }
+    
+    public func append(_ value: String) {
+        let elem: OpaquePointer = OCI_ElemCreate(typeHandle)
+        OCI_ElemSetString(elem, value)
+        OCI_CollAppend(handle, elem)
+        OCI_ElemFree(elem)
+    }
+}
