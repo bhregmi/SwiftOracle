@@ -135,3 +135,48 @@ for r in mainCursor {
 
 ```
 
+
+Unfortunately, the original SwiftOracle only supported one way, input bind variables. The output value returned by a procedure is not mapped to Swift BindVar instance. I haven't modified this interface yet.
+
+There is a simple workaround: turn your procedure into a function that returns a value and use select myfunc(input_param) from dual;
+
+If you can't modify the procedure, you can wrap it into a function to return the modified value. Here is an example.
+
+Assuming your procedure is as follows, and parameter1 is in out parameter, and we want to return the modified value.
+```
+create or replace procedure test_proc(parameter1 in out varchar2) as
+begin
+  parameter1 := 'modified value'; 
+end test_proc;
+```
+We can create a wrapper function as follows:
+
+```
+create or replace function test_func(parameter1 in varchar2) return varchar2 as
+  myVar varchar2(100) := parameter1;
+begin
+  test_proc(myVar);
+  return myVar;
+end test_func;
+```
+And then use
+```
+select test_func('some value') from dual;
+```
+
+This will return "modified value".
+
+In Swift, we would simple invoke the above select statement:
+```
+let sqlStr = "select test_func(:p1) from dual"
+try cursor.execute(sqlStr, params: [":p1" : BindVar("some value")])
+// fetch the data
+while let row = cursor.nextSwifty() {
+    for f in row.fields {
+        responseString += "\(f.toString)\t"
+    }
+}
+```
+
+
+
